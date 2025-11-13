@@ -6,6 +6,8 @@
 #include "flexspidev.h"
 #include "w25q128jw.h"
 
+struct flexspidev *flexdev;
+
 #ifdef CONFIG_SPI_MEM
 extern int spi_mem_exec_op(struct spi_mem *mem, const struct spi_mem_op *op);
 extern bool spi_mem_supports_op(struct spi_mem *mem, const struct spi_mem_op *op);
@@ -56,7 +58,6 @@ bool flexspidev_supports_op(struct device *dev, const struct spi_mem_op *op)
     return spi_mem_supports_op(&mem, op);
 }
 
-
 /**
  * @description: 设置SPI频率，需在flexspidev_init_controller_info函数调用后使用
  * @param {flexspidev} *flexdev
@@ -65,14 +66,15 @@ bool flexspidev_supports_op(struct device *dev, const struct spi_mem_op *op)
  */
 int flexspidev_set_speed(struct flexspidev *flexdev, u32 speed_hz)
 {
-    if (!flexdev || !flexdev->spi) {
+    if (!flexdev || !flexdev->spi)
+    {
         dev_err(flexdev->dev, "Invalid device\n");
         return -EINVAL;
     }
-    
+
     flexdev->spi->max_speed_hz = speed_hz;
     flexdev->fspi->selected = -1;
-    
+
     dev_info(flexdev->dev, "SPI speed set to %u Hz\n", speed_hz);
     return 0;
 }
@@ -83,29 +85,20 @@ static int flexspidev_init_controller_info(struct flexspidev *flexdev)
 
     /* 获取 FlexSPI 控制器私有数据 */
     flexdev->fspi = spi_controller_get_devdata(ctlr);
-    if (!flexdev->fspi) {
+    if (!flexdev->fspi)
+    {
         dev_err(flexdev->dev, "Failed to get FSPI controller data\n");
         return -ENODEV;
     }
 
-    dev_info(flexdev->dev, "  FlexSPI controller initialized:\n");
+    dev_info(flexdev->dev, "FlexSPI controller initialized:\n");
     return 0;
 }
 
+int flexspi_chrdev_init(struct flexspidev *dev);
 static int flexspidev_probe(struct spi_device *spi)
 {
-    int ret = 0;
-    u8 id_buf[8] = {0};
-    u32 *rdbuf = (u32 *)kzalloc(4096, GFP_KERNEL);
-    u32 *wrbuf = (u32 *)kzalloc(4096, GFP_KERNEL);
     struct device *dev = &spi->dev;
-    struct flexspidev *flexdev;
-
-    int i = 0;
-    for(i = 0; i < 1024; i++)
-    {
-        wrbuf[i] = i + 10;
-    }
 
     if (!spi->controller->mem_ops)
     {
@@ -124,87 +117,23 @@ static int flexspidev_probe(struct spi_device *spi)
     dev_set_drvdata(dev, flexdev);
     flexspidev_init_controller_info(flexdev);
 
-    flexspidev_set_speed(flexdev, 20000000);
+    flexspidev_set_speed(flexdev, 10000000);
+
+    flexspi_chrdev_init(flexdev);
+    dev_info(dev, "rx max len = %d\n", flexdev->fspi->devtype_data->rxfifo);
+    dev_info(dev, "ahb max len = %d\n", flexdev->fspi->devtype_data->ahb_buf_size);
+
 
     dev_info(dev, "flexspidev probed successfully\n");
-    
-    // 读ID
-    ret = w25q128jw_read_ID(dev,id_buf);
-    if (ret) {
-        dev_err(dev, "Failed to w25q128jw_read_ID : %d \n", ret);
-    }
-
-    // // 擦除
-    // ret = w25q1258jw_write_enable(dev); 
-    // if (ret) {
-    //     dev_err(dev, "Failed to w25q1258jw_write_enable : %d \n", ret);
-    // }
-
-    // ret = w25q1258jw_erase_sector(dev, 4096);
-    // if (ret) {
-    //     dev_err(dev, "Failed to w25q1258jw_erase_sector : %d \n", ret);
-    // }
-
-    // ret = w25q128jw_get_busy_status(dev);
-    // if (ret) {
-    //     dev_err(dev, "Failed to w25q128jw_get_status erase : %d \n", ret);
-    // }
-
-    // // 写入
-    // ret = w25q1258jw_write_data(dev, 4096, (void *)wrbuf, 1024);
-    // if (ret) {
-    //     dev_err(dev, "Failed to w25q1258jw_write_enable 1: %d \n", ret);
-    // }
-
-    // ret = w25q1258jw_write_data(dev, 5120, (void *)(wrbuf + 256), 1024);
-    // if (ret) {
-    //     dev_err(dev, "Failed to w25q1258jw_write_enable 2: %d \n", ret);
-    // }
-
-    // ret = w25q1258jw_write_data(dev, 6144, (void *)(wrbuf + 512), 1024);
-    // if (ret) {
-    //     dev_err(dev, "Failed to w25q1258jw_write_enable 3: %d \n", ret);
-    // }
-
-    // ret = w25q1258jw_write_data(dev, 7168, (void *)(wrbuf + 768), 1024);
-    // if (ret) {
-    //     dev_err(dev, "Failed to w25q1258jw_write_enable 4: %d \n", ret);
-    // }
-
-    // 读数据
-    ret = w25q128jw_read_data(dev, 4096 , rdbuf, 2048);
-    if (ret) {
-        dev_err(dev, "Failed to flexspidev_read_data : %d \n", ret);
-    }
-
-    ret = w25q128jw_read_data(dev, 4096 + 2048 , rdbuf + 512, 2048);
-    if (ret) {
-        dev_err(dev, "Failed to flexspidev_read_data : %d \n", ret);
-    }
-
-    for(i = 0; i < 1024; i++)
-    {
-        if(wrbuf[i] != rdbuf[i])
-        {
-            dev_err(dev, "Data mismatch at index %d: %x != %x\n", i, wrbuf[i], rdbuf[i]);
-            break;
-        }
-    }
-
-    if(i == 1024)
-    {
-        dev_info(dev, "Data match\n");
-    }
-    
-    kfree(wrbuf);
-    kfree(rdbuf);
 
     return 0;
 }
 
+void flexspi_chrdev_cleanup(struct flexspidev *dev);
 static int flexspidev_remove(struct spi_device *spi)
 {
     dev_info(&spi->dev, "flexspidev removed\n");
+    flexspi_chrdev_cleanup(flexdev);
     return 0;
 }
 

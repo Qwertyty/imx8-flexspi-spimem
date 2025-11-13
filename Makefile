@@ -3,7 +3,7 @@ WARN := -W -Wstrict-prototypes -Wmissing-prototypes
 
 # Module name and objects
 obj-m += mfspi.o
-mfspi-objs := flexspidev.o w25q128jw.o
+mfspi-objs := flexspidev.o w25q128jw.o flexspi_chrdev.o
 
 # Kernel source path (must be ARM64 kernel tree)
 KDIR ?= /path/kernel

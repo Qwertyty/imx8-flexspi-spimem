@@ -41,7 +41,7 @@ int w25q128jw_read_data(struct device *dev, u32 addr, void *buf, size_t len)
     return flexspidev_exec_op(dev, &op);
 }
 
-int w25q1258jw_write_enable(struct device *dev)
+int w25q128jw_write_enable(struct device *dev)
 {
     struct spi_mem_op op = SPI_MEM_OP(SPI_MEM_OP_CMD(SPINOR_OP_WREN, 1),
                                       SPI_MEM_OP_NO_ADDR,
@@ -51,14 +51,31 @@ int w25q1258jw_write_enable(struct device *dev)
     return flexspidev_exec_op(dev, &op);
 }
 
-int w25q1258jw_erase_sector(struct device *dev, u32 addr)
+int w25q128jw_erase_sector(struct device *dev, u32 addr)
 {
+    int ret = 0;
     struct spi_mem_op op = SPI_MEM_OP(SPI_MEM_OP_CMD(SPINOR_OP_BE_4K, 1),
                                       SPI_MEM_OP_ADDR(3, addr, 1),
                                       SPI_MEM_OP_NO_DUMMY,
                                       SPI_MEM_OP_NO_DATA);
 
-    return flexspidev_exec_op(dev, &op);
+    ret = w25q128jw_write_enable(dev);
+    if (ret)
+    {
+        dev_err(dev, "Write enable failed: %d\n", ret);
+        return ret;
+    }
+
+    ret = flexspidev_exec_op(dev, &op);
+    if (ret)
+    {
+        dev_err(dev, "Page program failed: %d\n", ret);
+        return ret;
+    }
+
+    ret = w25q128jw_get_busy_status(dev);
+
+    return ret;
 }
 
 unsigned char w25q128jw_get_busy_status(struct device *dev)
@@ -94,7 +111,7 @@ int w25q128jw_page_program(struct device *dev, u32 addr, const void *buf, size_t
                                       SPI_MEM_OP_ADDR(3, addr, 1),
                                       SPI_MEM_OP_NO_DUMMY,
                                       SPI_MEM_OP_DATA_OUT(len, buf, 4));
-    ret = w25q1258jw_write_enable(dev);
+    ret = w25q128jw_write_enable(dev);
     if (ret)
     {
         dev_err(dev, "Write enable failed: %d\n", ret);
@@ -113,13 +130,13 @@ int w25q128jw_page_program(struct device *dev, u32 addr, const void *buf, size_t
     return ret;
 }
 
-int w25q1258jw_write_data(struct device *dev, u32 addr, const void *buf, size_t len)
+int w25q128jw_write_data(struct device *dev, u32 addr, const void *buf, size_t len)
 {
     int ret = 0;
     u8 *src = (u8 *)buf;
     u16 NumOfPage = 0, NumOfSingle = 0, Addr = 0, count = 0;
     u16 NumByteToWriteRest = len;
-    
+
     Addr = addr % FLASH_PAGE_SIZE;
     count = FLASH_PAGE_SIZE - Addr;
 
@@ -163,7 +180,7 @@ int w25q1258jw_write_data(struct device *dev, u32 addr, const void *buf, size_t 
             addr += FLASH_PAGE_SIZE;
             src += FLASH_PAGE_SIZE;
         }
-        
+
         if (NumOfSingle != 0)
         {
             ret = w25q128jw_page_program(dev, addr, src, NumOfSingle);

@@ -2,7 +2,7 @@
  * @Author: Qwerty 263690179@qq.com
  * @Date: 2025-11-11 11:10:59
  * @LastEditors: Qwerty 263690179@qq.com
- * @LastEditTime: 2025-11-12 11:19:18
+ * @LastEditTime: 2025-11-13 10:56:14
  * @FilePath: \flexdriver\flexspidev.h
  * @Description: 这是默认设置,请设置`customMade`, 打开koroFileHeader查看配置 进行设置: https://github.com/OBKoro1/koro1FileHeader/wiki/%E9%85%8D%E7%BD%AE
  */
@@ -35,6 +35,27 @@
 
 #include <linux/pm_runtime.h>
 
+#define FLEXSPI_DEV_NAME "myflexspi"
+
+/* Use 'k' as magic number */
+#define FLEX_IOC_MAGIC 'm'
+/* Please use a different 8-bit number in your code */
+
+#define FLEX_FLASH_READ_ID _IOWR(FLEX_IOC_MAGIC, 0, int)
+#define FLEX_FLASH_ERASE_SECTOR _IOWR(FLEX_IOC_MAGIC, 1, int)
+#define FLEX_FLASH_WRITE_DATA _IOWR(FLEX_IOC_MAGIC, 2, int)
+#define FLEX_FLASH_READ_DATA _IOWR(FLEX_IOC_MAGIC, 3, int)
+
+#define FLEX_SET_CLK _IOWR(FLEX_IOC_MAGIC, 4, int)
+
+struct nxp_fspi_devtype_data {
+        unsigned int rxfifo;
+        unsigned int txfifo;
+        unsigned int ahb_buf_size;
+        unsigned int quirks;
+        bool little_endian;
+};
+
 struct nxp_fspi
 {
     void __iomem *iobase;
@@ -63,6 +84,17 @@ struct flexspidev
     struct device *dev;
     struct spi_device *spi;
     struct nxp_fspi *fspi; // FlexSPI 控制器私有数据
+
+    struct
+    {
+        int num_devices;         // The number of devices
+        unsigned int minor_num;  // The minor number of the device
+        dev_t dev_num;           // The device number of the device
+        char *chrdev_name;       // The name of the character device
+        struct device *dev;      // Device structure for the char device
+        struct class *dev_class; // The device class for the chardevice
+        struct cdev *cdev;       // The character device structure
+    } chrdev;
 };
 
 int flexspidev_exec_op(struct device *dev, const struct spi_mem_op *op);
