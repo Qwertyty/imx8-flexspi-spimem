@@ -20,4 +20,5 @@
 };
 
 ```
+##### 如更换内核版本，需根据官方源码(drivers/spi/spi-nxp-fspi.c)更改flexspidev.h中nxp_fspi与nxp_fspi_devtype_data结构体
 
