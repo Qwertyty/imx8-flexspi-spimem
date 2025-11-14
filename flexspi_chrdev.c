@@ -101,7 +101,7 @@ static long flexspi_dev_ioctl(struct file *file, u32 cmd, unsigned long arg)
         origin_addr = (uint8_t *)kzalloc(ops->len, GFP_KERNEL);
         readAddr = origin_addr;
 
-        do
+        while (NumByteToReadRest > 0)
         {
             read_size = NumByteToReadRest > ahb_buf_size ? ahb_buf_size : NumByteToReadRest;
             printk("Addr = %d, read_size = %d, NumByteToReadRest = %d\n", Addr, read_size, NumByteToReadRest);
@@ -113,7 +113,7 @@ static long flexspi_dev_ioctl(struct file *file, u32 cmd, unsigned long arg)
             NumByteToReadRest -= read_size;
             Addr += read_size;
             readAddr += read_size;
-        } while ((NumByteToReadRest - read_size) >= 0);
+        };
 
         if (copy_to_user((void *)ops->buf, (void *)origin_addr, ops->len))
         {
@@ -273,3 +273,4 @@ void flexspi_chrdev_cleanup(struct flexspidev *dev)
     device_destroy(dev->chrdev.dev_class, dev->chrdev.dev_num);
     class_destroy(dev->chrdev.dev_class);
 }
+
